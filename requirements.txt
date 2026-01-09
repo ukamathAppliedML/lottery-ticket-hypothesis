@@ -1,0 +1,27 @@
+# Core dependencies
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.21.0
+
+# Data processing
+pandas>=1.3.0
+scipy>=1.7.0
+
+# Visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+tqdm>=4.62.0
+
+# Export & deployment
+onnx>=1.12.0
+onnxruntime>=1.12.0
+
+# Development
+pytest>=7.0.0
+black>=22.0.0
+flake8>=4.0.0
+mypy>=0.950
+
+# Documentation
+sphinx>=4.0.0
+sphinx-rtd-theme>=1.0.0
