@@ -1,6 +1,9 @@
 # The Lottery Ticket Hypothesis
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-A production-ready implementation of [The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks](https://arxiv.org/abs/1803.03635) (Frankle & Carlin, ICLR 2019).
+A production-ready implementation of [The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks](https://arxiv.org/abs/1803.03635) (Frankle & Carbin, ICLR 2019).
 
 ## The Core Insight
 
@@ -262,7 +265,7 @@ Production deployments stack optimizations: magnitude pruning → structured 2:4
 ```bibtex
 @inproceedings{frankle2019lottery,
   title={The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks},
-  author={Frankle, Jonathan and Carlin, Michael},
+  author={Frankle, Jonathan and Carbin, Michael},
   booktitle={International Conference on Learning Representations},
   year={2019}
 }
