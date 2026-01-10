@@ -72,6 +72,64 @@ python examples/lottery_ticket_demo.py
 
 The key insight is step 4: you don't keep the trained weights. You keep the original random values that happened to be "lucky."
 
+### A Toy Example
+
+Let's trace the algorithm with a tiny 6-weight network.
+
+**Step 1: Random Initialization (θ₀)**
+```
+θ₀ = [0.5, -0.1, 0.8, -0.3, 0.2, 0.7]
+      w1    w2   w3    w4   w5   w6
+
+We save this. This is the potential winning ticket.
+```
+
+**Step 2: Train Dense Network**
+```
+θ_trained = [0.9, 0.02, 1.2, -0.05, 0.4, 1.1]
+             w1   w2    w3    w4    w5   w6
+
+Notice: w2 and w4 ended up near zero — the network learned they don't matter.
+```
+
+**Step 3: Prune by Magnitude (50% sparsity)**
+```
+Rank by |value|: w4(0.05) < w2(0.02) < w5(0.4) < w1(0.9) < w6(1.1) < w3(1.2)
+Prune smallest 50%: w2, w4, w5
+
+mask = [1, 0, 1, 0, 0, 1]
+        ✓  ✗  ✓  ✗  ✗  ✓
+```
+
+**Step 4: Reset to Original Init + Apply Mask**
+```
+θ₀        = [0.5, -0.1, 0.8, -0.3, 0.2, 0.7]
+mask      = [  1,    0,   1,    0,   0,   1]
+                  
+θ₀ ⊙ mask = [0.5,  0.0, 0.8,  0.0, 0.0, 0.7]  ← Winning Ticket
+
+We keep ORIGINAL random values of w1, w3, w6 — not their trained values.
+```
+
+**Step 5: Train Sparse Network → Same accuracy, 50% fewer parameters**
+
+**Step 6: Control — Same mask, NEW random init**
+```
+θ₀_new ⊙ mask = [0.3, 0.0, 0.1, 0.0, 0.0, 0.2]  ← Random Ticket
+
+Train this → Much worse accuracy!
+```
+
+**The Point:**
+
+| | Winning Ticket | Random Ticket |
+|---|---|---|
+| Mask | [1,0,1,0,0,1] | [1,0,1,0,0,1] |
+| Init | [0.5, -, 0.8, -, -, 0.7] | [0.3, -, 0.1, -, -, 0.2] |
+| Result | 80% accuracy | 53% accuracy |
+
+Same structure. Different numbers. The specific initialization matters.
+
 ### Implementation Details
 
 **Mask Enforcement During Training**
