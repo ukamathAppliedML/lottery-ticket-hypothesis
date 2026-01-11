@@ -130,6 +130,141 @@ Train this → Much worse accuracy!
 
 Same structure. Different numbers. The specific initialization matters.
 
+### From Theory to Production: The Problem
+
+The lottery ticket above is **unstructured sparse** — zeros are scattered randomly:
+
+```
+mask = [1, 0, 1, 0, 0, 1]
+        ✓  ✗  ✓  ✗  ✗  ✓
+```
+
+GPUs hate this. They still check every position:
+
+```
+GPU: "Is position 0 zero? No, compute. Position 1? Yes, skip. Position 2?..."
+```
+
+**Result:** 90% sparse but **0% speedup**. You save memory, not time.
+
+To get real speedup, we need two more techniques: **structured sparsity** and **quantization**.
+
+---
+
+### Structured 2:4 Sparsity (GPU Acceleration)
+
+NVIDIA's solution: **enforce a predictable pattern**.
+
+**Rule:** Every 4 consecutive weights must have exactly 2 non-zeros.
+
+**Toy Example:**
+
+```
+Original:     [0.5, 0.1, 0.8, 0.2 | 0.9, 0.3, 0.1, 0.7]
+               ─────────────────   ─────────────────
+                   Group 1             Group 2
+
+Keep top 2 by magnitude in each group:
+
+Group 1: |0.8| > |0.5| > |0.2| > |0.1|  → Keep 0.8, 0.5
+Group 2: |0.9| > |0.7| > |0.3| > |0.1|  → Keep 0.9, 0.7
+
+Result:       [0.5, 0.0, 0.8, 0.0 | 0.9, 0.0, 0.0, 0.7]
+               ✓    ✗    ✓    ✗     ✓    ✗    ✗    ✓
+```
+
+The GPU knows the pattern in advance — Sparse Tensor Cores skip zeros without checking.
+
+| Sparsity Type | Pattern | GPU Speedup |
+|---------------|---------|-------------|
+| Unstructured 90% | Random zeros | **1x (none)** |
+| Structured 2:4 | 2 per 4 | **2x real** |
+
+**50% structured beats 90% unstructured for inference speed.**
+
+---
+
+### Quantization (Precision Reduction)
+
+Quantization shrinks **precision**, not count.
+
+**Toy Example: FP32 → INT8**
+
+```
+Original (FP32, 4 bytes each):
+[0.78, 0.23, -0.91, 0.45]  →  16 bytes total
+
+Step 1: Find range
+  min = -0.91, max = 0.78, range = 1.69
+
+Step 2: Map to INT8 (-128 to 127)
+  scale = 1.69 / 255 = 0.00663
+  
+Step 3: Convert
+  0.78  → 127
+  0.23  → 44
+  -0.91 → -128
+  0.45  → 77
+
+Quantized (INT8, 1 byte each):
+[127, 44, -128, 77]  →  4 bytes total (4x smaller!)
+```
+
+Small rounding errors, but network still works (~1% accuracy loss).
+
+| Precision | Bits | Size | Speed | Use Case |
+|-----------|------|------|-------|----------|
+| FP32 | 32 | 1x | 1x | Training |
+| FP16 | 16 | 2x smaller | 2x faster | Training/Inference |
+| INT8 | 8 | 4x smaller | 2-4x faster | Inference |
+| INT4 | 4 | 8x smaller | 4-8x faster | Edge deployment |
+
+---
+
+### The Production Pipeline
+
+All three techniques are **independent** and **stackable**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  1. LOTTERY TICKET (find important weights)                 │
+│     Input:  342,090 weights (FP32)                          │
+│     Output: 34,209 weights (90% pruned, unstructured)       │
+│     Speedup: None (just identifies what matters)            │
+└─────────────────────────────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────┐
+│  2. STRUCTURED 2:4 (make it GPU-friendly)                   │
+│     Input:  Trained sparse network                          │
+│     Output: 171,045 weights (50% sparse, 2:4 pattern)       │
+│     Speedup: 2x (Tensor Core acceleration)                  │
+└─────────────────────────────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────┐
+│  3. QUANTIZATION (shrink precision)                         │
+│     Input:  FP32 weights                                    │
+│     Output: INT8 weights (4x smaller)                       │
+│     Speedup: 2-4x (smaller memory, faster ops)              │
+└─────────────────────────────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────┐
+│  COMBINED RESULT                                            │
+│     Size: 8x smaller (2x sparsity × 4x quantization)        │
+│     Speed: 4-8x faster (2x sparse × 2-4x quant)             │
+│     Accuracy: ~99% retained                                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Real-world impact (GPT-3 scale):**
+
+| | Original | Optimized |
+|---|---|---|
+| Size | 700 GB | 35-90 GB |
+| Cost | $500K/month | $50K/month |
+| Latency | 2 seconds | 200ms |
+
+---
+
 ### Implementation Details
 
 **Mask Enforcement During Training**
